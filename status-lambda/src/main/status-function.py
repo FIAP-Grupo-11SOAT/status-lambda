@@ -16,7 +16,6 @@ from decimal import Decimal
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-S3_BUCKET = os.environ.get('BUCKET')
 TABLE_NAME = os.environ.get('TABLE')
 
 def lambda_handler(event, context):
@@ -67,13 +66,7 @@ def processar_resultados(items, s3_client):
     """Formata a lista de itens e gera URLs de download."""
     results = []
     for it in items:
-        s3_key = it.get('s3_key')
-        download_url = None
-        if s3_key and S3_BUCKET:
-            try:
-                download_url = s3_client.generate_presigned_url('get_object', Params={'Bucket': S3_BUCKET, 'Key': s3_key}, ExpiresIn=3600)
-            except Exception:
-                download_url = None
+       
 
         email_val = it.get('idEmail')
         upload_id = it.get('idUpload')
@@ -81,11 +74,7 @@ def processar_resultados(items, s3_client):
         results.append({
             'email': email_val,
             'upload_id': upload_id,
-            'status': it.get('status'),
-            's3_key': s3_key,
-            'download_url': download_url,
-            'created_at': it.get('created_at'),
-            'frame_count': it.get('frame_count')
+            'status': it.get('status')
         })
     return results
 

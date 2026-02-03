@@ -29,6 +29,11 @@ jobs:
         run: |
           zip -r status-lambda.zip .
 
+      - name: Run Unit Tests
+        working-directory: status-lambda/src/main
+        run: |
+          python -m unittest discover -s tests -p "test_*.py"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
 
