@@ -32,7 +32,6 @@ resource "aws_lambda_function" "status_processor" {
 
   environment {
     variables = {
-      BUCKET   = "upload-bucket-11soat"
       TABLE    = "upload"
     }
   }

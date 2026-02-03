@@ -29,13 +29,12 @@ def lambda_handler(event, context):
     email, upload_id = obter_filtros(event)
     logger.info(f"Iniciando listagem de arquivos. Email: {email}, UploadId: {upload_id}")
 
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(TABLE_NAME)
-    s3 = boto3.client('s3')
-
     try:
+        dynamodb = boto3.resource('dynamodb')
+        table = dynamodb.Table(TABLE_NAME)
+
         items = buscar_registros(table, email, upload_id)
-        results = processar_resultados(items, s3)
+        results = processar_resultados(items)
         return responder(200, {'files': results, 'total': len(results)})
 
     except Exception as e:
@@ -62,8 +61,8 @@ def buscar_registros(table, email, upload_id):
     return resp.get('Items') or []
 
 
-def processar_resultados(items, s3_client):
-    """Formata a lista de itens e gera URLs de download."""
+def processar_resultados(items):
+    """Formata a lista de itens."""
     results = []
     for it in items:
        

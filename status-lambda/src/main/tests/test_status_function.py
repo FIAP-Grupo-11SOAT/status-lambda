@@ -22,7 +22,7 @@ class TestStatusFunction(unittest.TestCase):
 
     def setUp(self):
         # Configura variáveis de ambiente padrão para os testes
-        self.env_patcher = patch.dict(os.environ, {'TABLE': 'TestTable', 'BUCKET': 'TestBucket'})
+        self.env_patcher = patch.dict(os.environ, {'TABLE': 'TestTable'})
         self.env_patcher.start()
         # Atualiza a variável global do módulo, pois ela é lida na importação
         status_function.TABLE_NAME = 'TestTable'
@@ -31,8 +31,7 @@ class TestStatusFunction(unittest.TestCase):
         self.env_patcher.stop()
 
     @patch('boto3.resource')
-    @patch('boto3.client')
-    def test_lambda_handler_success_scan(self, mock_client, mock_resource):
+    def test_lambda_handler_success_scan(self, mock_resource):
         """Testa listagem completa (Scan) quando sem filtros."""
         # Mock do DynamoDB
         mock_table = MagicMock()
@@ -63,8 +62,7 @@ class TestStatusFunction(unittest.TestCase):
         self.assertEqual(body['files'][0]['email'], 'teste@fiap.com.br')
 
     @patch('boto3.resource')
-    @patch('boto3.client')
-    def test_lambda_handler_success_query_filters(self, mock_client, mock_resource):
+    def test_lambda_handler_success_query_filters(self, mock_resource):
         """Testa busca filtrada (Query) quando email e upload_id são fornecidos."""
         mock_table = MagicMock()
         mock_resource.return_value.Table.return_value = mock_table
