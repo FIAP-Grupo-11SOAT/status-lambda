@@ -45,7 +45,11 @@ def lambda_handler(event, context):
 def obter_filtros(event):
     """Extrai email e upload_id da query string, se existirem."""
     params = event.get('queryStringParameters') or {}
-    return params.get('email'), params.get('upload_id')
+    email = params.get('email')
+    upload_id = params.get('upload_id')
+    if not upload_id:
+        upload_id = None
+    return email, upload_id
 
 
 def buscar_registros(table, email, upload_id):

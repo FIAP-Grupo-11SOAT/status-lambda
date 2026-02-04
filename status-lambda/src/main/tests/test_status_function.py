@@ -80,6 +80,25 @@ class TestStatusFunction(unittest.TestCase):
         # Verifica se chamou query (e não scan)
         mock_table.query.assert_called_once()
 
+    @patch('boto3.resource')
+    def test_lambda_handler_success_query_email_only(self, mock_resource):
+        """Testa busca filtrada (Query) quando upload_id é vazio ou null."""
+        mock_table = MagicMock()
+        mock_resource.return_value.Table.return_value = mock_table
+        mock_table.query.return_value = {'Items': []}
+
+        event = {
+            'queryStringParameters': {
+                'email': 'teste@fiap.com.br',
+                'upload_id': ''
+            }
+        }
+        
+        status_function.lambda_handler(event, {})
+        
+        # Verifica se chamou query
+        mock_table.query.assert_called_once()
+
     def test_lambda_handler_missing_table_env(self):
         """Testa erro quando a variável de ambiente TABLE não está definida."""
         # Remove a variável TABLE temporariamente
