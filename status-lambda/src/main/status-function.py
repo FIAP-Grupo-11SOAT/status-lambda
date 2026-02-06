@@ -2,6 +2,10 @@ import os
 import json
 import logging
 import boto3
+import urllib.request
+import urllib.parse
+import urllib.error
+import base64
 from datetime import timezone
 from decimal import Decimal
 
@@ -26,7 +30,11 @@ def lambda_handler(event, context):
     if not TABLE_NAME:
         return responder(500, {'success': False, 'message': 'Variável de ambiente TABLE não configurada'})
 
-    email, upload_id = obter_filtros(event)
+    email = validar_jwt_cognito(event)
+    if not email:
+        return responder(401, {'success': False, 'message': 'Acesso não autorizado: Falha na validação do token'})
+
+    _, upload_id = obter_filtros(event)
     logger.info(f"Iniciando listagem de arquivos. Email: {email}, UploadId: {upload_id}")
 
     try:
@@ -95,3 +103,54 @@ def responder(status_code, body_dict):
         'headers': {'Content-Type': 'application/json'},
         'body': json.dumps(body_dict, cls=DecimalEncoder)
     }
+
+def validar_jwt_cognito(event):
+    # 1. Configurações do Cognito (Substitua pelos seus dados)
+    DOMAIN = "hackaton-11soat-auth-v2.auth.us-east-1.amazoncognito.com"
+    CLIENT_ID = "458sg2qduaf2ssokfrpl40p80f"
+    REDIRECT_URI = "https://example.com/callback"
+    
+    params = event.get('queryStringParameters') or {}
+    code = params.get('code')
+    
+    if not code:
+        return None
+
+    # 3. Preparar a chamada para trocar o CODE por TOKENS
+    token_url = f"https://{DOMAIN}/oauth2/token"
+
+    data = {
+        'grant_type': 'authorization_code',
+        'client_id': CLIENT_ID,
+        'code': code,
+        'redirect_uri': REDIRECT_URI
+    }
+
+    encoded_data = urllib.parse.urlencode(data).encode('utf-8')
+    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+    try:
+        # 4. Fazer a requisição POST
+        req = urllib.request.Request(token_url, data=encoded_data, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            res_body = response.read()
+            tokens = json.loads(res_body.decode('utf-8'))
+
+            # O 'id_token' contém os dados do perfil do usuário
+            id_token = tokens.get('id_token')
+
+            # 5. Decodificar o ID Token para ver os dados (Email, Sub, etc)
+            # O ID Token é um JWT. A parte do meio (índice 1) contém os dados.
+            payload_b64 = id_token.split('.')[1]
+            # Adiciona padding se necessário para o base64
+            payload_json = base64.b64decode(payload_b64 + '===').decode('utf-8')
+            user_data = json.loads(payload_json)
+            user_email = user_data.get('email')
+            logger.info(f"Email: {user_email}")
+
+            return user_email
+
+    except urllib.error.HTTPError as e:
+        error_details = e.read().decode()
+        logger.error(f"Erro detalhado do Cognito: {error_details}")
+        return None
