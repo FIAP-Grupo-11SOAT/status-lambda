@@ -122,9 +122,10 @@ class TestStatusFunction(unittest.TestCase):
         self.assertFalse(body['success'])
         self.assertIn('Variável de ambiente TABLE não configurada', body['message'])
 
+    @patch('status_function.logger')
     @patch('status_function.autenticar_usuario')
     @patch('boto3.resource')
-    def test_lambda_handler_dynamodb_exception(self, mock_resource, mock_auth):
+    def test_lambda_handler_dynamodb_exception(self, mock_resource, mock_auth, mock_logger):
         """Testa tratamento de exceção ao acessar o DynamoDB."""
         mock_auth.return_value = ('teste@fiap.com.br', None)
         mock_resource.side_effect = Exception("Erro de conexão")
