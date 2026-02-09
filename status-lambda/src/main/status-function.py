@@ -30,11 +30,11 @@ def lambda_handler(event, context):
     if not TABLE_NAME:
         return responder(500, {'success': False, 'message': 'Variável de ambiente TABLE não configurada'})
 
-    email = validar_jwt_cognito(event)
-    if not email:
-        return responder(401, {'success': False, 'message': 'Acesso não autorizado: Falha na validação do token'})
+    email, error_response = autenticar_usuario(event)
+    if error_response:
+        return error_response
 
-    _, upload_id = obter_filtros(event)
+    upload_id = obter_filtros(event)
     logger.info(f"Iniciando listagem de arquivos. Email: {email}, UploadId: {upload_id}")
 
     try:
@@ -53,11 +53,10 @@ def lambda_handler(event, context):
 def obter_filtros(event):
     """Extrai email e upload_id da query string, se existirem."""
     params = event.get('queryStringParameters') or {}
-    email = params.get('email')
     upload_id = params.get('upload_id')
     if not upload_id:
         upload_id = None
-    return email, upload_id
+    return upload_id
 
 
 def buscar_registros(table, email, upload_id):
@@ -104,53 +103,36 @@ def responder(status_code, body_dict):
         'body': json.dumps(body_dict, cls=DecimalEncoder)
     }
 
-def validar_jwt_cognito(event):
-    # 1. Configurações do Cognito (Substitua pelos seus dados)
-    DOMAIN = "hackaton-11soat-auth-v2.auth.us-east-1.amazoncognito.com"
-    CLIENT_ID = "458sg2qduaf2ssokfrpl40p80f"
-    REDIRECT_URI = "https://example.com/callback"
-    
-    params = event.get('queryStringParameters') or {}
-    code = params.get('code')
-    
-    if not code:
-        return None
+def autenticar_usuario(event):
+    headers = event.get('headers') or {}
+    auth_header = headers.get('Authorization') or headers.get('authorization')
 
-    # 3. Preparar a chamada para trocar o CODE por TOKENS
-    token_url = f"https://{DOMAIN}/oauth2/token"
-
-    data = {
-        'grant_type': 'authorization_code',
-        'client_id': CLIENT_ID,
-        'code': code,
-        'redirect_uri': REDIRECT_URI
-    }
-
-    encoded_data = urllib.parse.urlencode(data).encode('utf-8')
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+    if not auth_header:
+        return None, responder(401, {'success': False, 'message': 'Token ausente'})
 
     try:
-        # 4. Fazer a requisição POST
-        req = urllib.request.Request(token_url, data=encoded_data, headers=headers)
-        with urllib.request.urlopen(req) as response:
-            res_body = response.read()
-            tokens = json.loads(res_body.decode('utf-8'))
+        id_token = auth_header.split(' ')[1]
+    except IndexError:
+        return None, responder(401, {'success': False, 'message': 'Formato de token inválido'})
 
-            # O 'id_token' contém os dados do perfil do usuário
-            id_token = tokens.get('id_token')
+    return validar_jwt(id_token), None
 
-            # 5. Decodificar o ID Token para ver os dados (Email, Sub, etc)
-            # O ID Token é um JWT. A parte do meio (índice 1) contém os dados.
-            payload_b64 = id_token.split('.')[1]
-            # Adiciona padding se necessário para o base64
-            payload_json = base64.b64decode(payload_b64 + '===').decode('utf-8')
-            user_data = json.loads(payload_json)
-            user_email = user_data.get('email')
-            logger.info(f"Email: {user_email}")
+def validar_jwt(id_token):
+    try:
+        # 5. Decodificar o ID Token para ver os dados (Email, Sub, etc)
+        # O ID Token é um JWT. A parte do meio (índice 1) contém os dados.
+        payload_b64 = id_token.split('.')[1]
+        # Adiciona padding se necessário para o base64
+        payload_json = base64.b64decode(payload_b64 + '===').decode('utf-8')
+        user_data = json.loads(payload_json)
+        user_email = user_data.get('email')
+        logger.info(f"Email: {user_email}")
 
-            return user_email
+        return user_email
 
-    except urllib.error.HTTPError as e:
+    except Exception as e:
+        logger.error(f"Erro ao decodificar token: {e}")
+        return None
         error_details = e.read().decode()
         logger.error(f"Erro detalhado do Cognito: {error_details}")
         return None
