@@ -30,17 +30,21 @@ class TestStatusFunction(unittest.TestCase):
     def tearDown(self):
         self.env_patcher.stop()
 
+    @patch('status_function.autenticar_usuario')
     @patch('boto3.resource')
-    def test_lambda_handler_success_scan(self, mock_resource):
-        """Testa listagem completa (Scan) quando sem filtros."""
+    def test_lambda_handler_success_scan(self, mock_resource, mock_auth):
+        """Testa listagem completa (agora Query por email) quando sem filtros."""
+        # Mock da autenticação
+        mock_auth.return_value = ('teste@fiap.com.br', None)
+
         # Mock do DynamoDB
         mock_table = MagicMock()
         mock_dynamo = MagicMock()
         mock_resource.return_value = mock_dynamo
         mock_dynamo.Table.return_value = mock_table
         
-        # Mock da resposta do Scan
-        mock_table.scan.return_value = {
+        # Mock da resposta do Scan (agora Query)
+        mock_table.query.return_value = {
             'Items': [
                 {
                     'idEmail': 'teste@fiap.com.br',
@@ -60,10 +64,15 @@ class TestStatusFunction(unittest.TestCase):
         
         self.assertEqual(body['total'], 1)
         self.assertEqual(body['files'][0]['email'], 'teste@fiap.com.br')
+        
+        # Verifica se chamou query (pois email está presente)
+        mock_table.query.assert_called_once()
 
+    @patch('status_function.autenticar_usuario')
     @patch('boto3.resource')
-    def test_lambda_handler_success_query_filters(self, mock_resource):
+    def test_lambda_handler_success_query_filters(self, mock_resource, mock_auth):
         """Testa busca filtrada (Query) quando email e upload_id são fornecidos."""
+        mock_auth.return_value = ('teste@fiap.com.br', None)
         mock_table = MagicMock()
         mock_resource.return_value.Table.return_value = mock_table
         mock_table.query.return_value = {'Items': []}
@@ -80,9 +89,11 @@ class TestStatusFunction(unittest.TestCase):
         # Verifica se chamou query (e não scan)
         mock_table.query.assert_called_once()
 
+    @patch('status_function.autenticar_usuario')
     @patch('boto3.resource')
-    def test_lambda_handler_success_query_email_only(self, mock_resource):
+    def test_lambda_handler_success_query_email_only(self, mock_resource, mock_auth):
         """Testa busca filtrada (Query) quando upload_id é vazio ou null."""
+        mock_auth.return_value = ('teste@fiap.com.br', None)
         mock_table = MagicMock()
         mock_resource.return_value.Table.return_value = mock_table
         mock_table.query.return_value = {'Items': []}
@@ -111,9 +122,12 @@ class TestStatusFunction(unittest.TestCase):
         self.assertFalse(body['success'])
         self.assertIn('Variável de ambiente TABLE não configurada', body['message'])
 
+    @patch('status_function.logger')
+    @patch('status_function.autenticar_usuario')
     @patch('boto3.resource')
-    def test_lambda_handler_dynamodb_exception(self, mock_resource):
+    def test_lambda_handler_dynamodb_exception(self, mock_resource, mock_auth, mock_logger):
         """Testa tratamento de exceção ao acessar o DynamoDB."""
+        mock_auth.return_value = ('teste@fiap.com.br', None)
         mock_resource.side_effect = Exception("Erro de conexão")
         
         response = status_function.lambda_handler({}, {})
